@@ -158,4 +158,47 @@ class NormalizeCsvsTest < Minitest::Test
     assert_nil NormalizeCsvs.normalize_date(nil)
     assert_nil NormalizeCsvs.normalize_date("")
   end
+
+  def test_handles_invalid_date_format
+    bad_date_csv = Tempfile.new(["chase_amazon", ".csv"])
+    bad_date_csv.write(<<~CSV)
+      Transaction Date,Description,Amount
+      not_a_date,Invalid Date Entry,25.00
+    CSV
+    bad_date_csv.rewind
+
+    assert_raises(Date::Error) do
+      NormalizeCsvs.normalize_csvs([bad_date_csv.path], FORMATS)
+    end
+
+    bad_date_csv.close!
+  end
+
+  def test_ignores_extra_columns
+    extended_csv = Tempfile.new(["chase_amazon", ".csv"])
+    extended_csv.write(<<~CSV)
+      Transaction Date,Description,Amount,Memo,Category
+      07/10/2025,Coffee,-4.50,Starbucks,Food
+    CSV
+    extended_csv.rewind
+
+    rows = NormalizeCsvs.normalize_csvs([extended_csv.path], FORMATS)
+    assert_equal 1, rows.size
+    assert_equal(-4.50, rows.first["Amount"])
+    assert_equal "Coffee", rows.first["Description"]
+    extended_csv.close!
+  end
+
+  def test_strips_whitespace_in_fields
+    messy_csv = Tempfile.new(["chase_amazon", ".csv"])
+    messy_csv.write(<<~CSV)
+      Transaction Date,Description,Amount
+      07/11/2025,  Groceries  , -25.00
+    CSV
+    messy_csv.rewind
+
+    row = NormalizeCsvs.normalize_csvs([messy_csv.path], FORMATS).first
+    assert_equal "Groceries", row["Description"]
+    messy_csv.close!
+  end
 end

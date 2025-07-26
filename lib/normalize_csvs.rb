@@ -4,13 +4,6 @@ require "pry"
 
 module NormalizeCsvs
   def self.normalize_csvs(file_paths, formats)
-    formats = {
-      "chase_amazon" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-      "chase_ihg" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-      "citibank" => { date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
-      "capital_one" => { date: "Transaction Date", description: "Description",  debit: "Debit", credit: "Credit" },
-    }
-
     rows = []
 
     file_paths.each do |path|
