@@ -54,6 +54,8 @@ module NormalizeCsvs
       "Date" => normalize_date(row[format[:date]]),
       "Description" => raw_description,
       "Amount" => amount,
+      "Category" => '',
+      "Notes" => '',
       "Source" => source_key.capitalize,
       "Type" => type
     }
@@ -92,5 +94,13 @@ module NormalizeCsvs
     numeric = str.gsub(/[\$,()]/, "").to_f
 
     is_negative ? -numeric : numeric
+  end
+
+  def self.write_csv(file_path, rows, columns)
+    CSV.open(file_path, "w") do |csv|
+      rows.each do |row|
+        csv << columns.map { |col| row[col] }
+      end
+    end
   end
 end

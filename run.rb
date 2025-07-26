@@ -22,16 +22,7 @@ Dir.mkdir("output") unless Dir.exist?("output")
 income_rows = rows.select { |row| row["Type"] == "Income" }.sort_by { |row| Date.parse(row["Date"]) }
 expense_rows = rows.select { |row| row["Type"] == "Expense" }.sort_by { |row| Date.parse(row["Date"]) }
 
-# Write expenses
-CSV.open("output/expenses.csv", "w") do |csv|
-  csv << ["Date", "Description", "Amount", "Source"]
-  expense_rows.each { |row| csv << row.values_at("Date", "Description", "Amount", "Source") }
-end
-
-# Write income
-CSV.open("output/income.csv", "w") do |csv|
-  csv << ["Date", "Description", "Amount", "Source"]
-  income_rows.each { |row| csv << row.values_at("Date", "Description", "Amount", "Source") }
-end
+NormalizeCsvs.write_csv("output/income.csv", income_rows, ["Date", "Description", "Amount", "Category", "Notes", "Source"])
+NormalizeCsvs.write_csv("output/expenses.csv", expense_rows, ["Date", "Description", "Amount", "Category", "Notes", "Source"])
 
 puts "Wrote #{expense_rows.size} expenses and #{income_rows.size} income rows."
