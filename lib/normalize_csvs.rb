@@ -20,6 +20,7 @@ module NormalizeCsvs
   end
 
   def self.normalize_row(row, format, source_key)
+    raw_description = row[format[:description]].to_s.strip
     amount =
       # { debit: "Amount", credit: "Amount" }
       if format[:debit] == format[:credit]
@@ -37,11 +38,23 @@ module NormalizeCsvs
         0.0
       end
 
+    # Determine default category based on format type
+    base_category = format[:type] || :expense
+
+    # Detect keywords that indicate income (override)
+    description = raw_description.downcase
+    if base_category == :expense && description.match?(/(cashback|reward|statement credit)/)
+      category = "Income"
+    else
+      category = base_category.to_s.capitalize
+    end
+
     {
       "Date" => normalize_date(row[format[:date]]),
-      "Description" => row[format[:description]].to_s.strip,
+      "Description" => raw_description,
       "Amount" => amount,
-      "Source" => source_key.capitalize
+      "Source" => source_key.capitalize,
+      "Category" => category
     }
   end
 

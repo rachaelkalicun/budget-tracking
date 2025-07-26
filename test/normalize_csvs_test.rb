@@ -6,10 +6,10 @@ require_relative "../lib/normalize_csvs"
 
 class NormalizeCsvsTest < Minitest::Test
   FORMATS = {
-    "chase_amazon" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-    "chase_ihg" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-    "citibank" => { date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
-    "capital_one" => { date: "Transaction Date", description: "Description",  debit: "Debit", credit: "Credit" },
+    "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
+    "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
+    "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
+    "capital_one" => { type: :expense, date: "Transaction Date", description: "Description",  debit: "Debit", credit: "Credit" },
   }
 
   def setup
@@ -57,7 +57,7 @@ class NormalizeCsvsTest < Minitest::Test
     rows = NormalizeCsvs.normalize_csvs([@capital_one_csv.path, @chase_amazon_csv.path, @chase_ihg_csv.path, @citibank_csv.path], FORMATS)
     assert_equal 8, rows.size
     rows.each do |row|
-      assert_equal ["Date", "Description", "Amount", "Source"], row.keys
+      assert_equal ["Date", "Description", "Amount", "Source", "Category"], row.keys
     end
   end
 
@@ -213,5 +213,66 @@ class NormalizeCsvsTest < Minitest::Test
     rows = NormalizeCsvs.normalize_csvs([formatted_csv.path], FORMATS)
     assert_equal(-123.45, rows[0]["Amount"])
     formatted_csv.close!
+  end
+
+  def test_category_defaults_to_expense
+    row = CSV::Row.new(
+      ["Transaction Date", "Description", "Amount"],
+      ["07/01/2025", "Regular Purchase", "100.00"]
+    )
+    format = FORMATS["chase_amazon"]
+    result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
+
+    assert_equal "Expense", result["Category"]
+  end
+
+  def test_category_switches_to_income_for_cashback
+    row = CSV::Row.new(
+      ["Transaction Date", "Description", "Amount"],
+      ["07/02/2025", "Cashback Reward", "5.00"]
+    )
+    format = FORMATS["chase_amazon"]
+    result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
+
+    assert_equal "Income", result["Category"]
+  end
+
+  def test_category_switches_to_income_for_statement_credit
+    row = CSV::Row.new(
+      ["Transaction Date", "Description", "Amount"],
+      ["07/03/2025", "Reward Statement Credit", "10.00"]
+    )
+    format = FORMATS["chase_amazon"]
+    result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
+
+    assert_equal "Income", result["Category"]
+  end
+
+  def test_category_respects_income_source_type
+    income_format = {
+      type: :income,
+      date: "Date",
+      description: "Description",
+      debit: "Debit",
+      credit: "Credit"
+    }
+
+    row = CSV::Row.new(
+      ["Date", "Description", "Credit", "Debit"],
+      ["07/04/2025", "Interest Payment", "0.00", "50.00"]
+    )
+    result = NormalizeCsvs.normalize_row(row, income_format, "my_bank")
+    assert_equal "Income", result["Category"]
+  end
+
+  def test_refund_is_still_expense_not_income
+    row = CSV::Row.new(
+      ["Transaction Date", "Description", "Amount"],
+      ["07/05/2025", "Return of Item", "20.00"]
+    )
+    format = FORMATS["chase_amazon"]
+    result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
+
+    assert_equal "Expense", result["Category"]
   end
 end

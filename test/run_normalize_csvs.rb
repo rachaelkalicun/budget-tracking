@@ -3,10 +3,10 @@ require "csv"
 require_relative "lib/normalize_csvs"
 
 FORMATS = {
-  "chase_amazon" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-  "chase_ihg" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-  "citibank" => { date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
-  "capital_one" => { date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit" },
+  "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
+  "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
+  "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
+  "capital_one" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit" },
 }
 
 input_files = Dir["./csv_inputs/*.csv"]
