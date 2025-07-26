@@ -229,7 +229,7 @@ class NormalizeCsvsTest < Minitest::Test
   def test_category_switches_to_income_for_cashback
     row = CSV::Row.new(
       ["Transaction Date", "Description", "Amount"],
-      ["07/02/2025", "Cashback Reward", "5.00"]
+      ["07/02/2025", "Statement Credit - Thank You", "5.00"]
     )
     format = FORMATS["chase_amazon"]
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
@@ -274,5 +274,43 @@ class NormalizeCsvsTest < Minitest::Test
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
 
     assert_equal "Expense", result["Category"]
+  end
+
+  def test_output_is_sorted_by_date
+    mixed_csv = Tempfile.new(["capital_one", ".csv"])
+    mixed_csv.write(<<~CSV)
+      Transaction Date,Description,Debit,Credit
+      2025-07-10,Late Transaction,50.00,
+      2025-07-01,Early Transaction,10.00,
+      2025-07-05,Middle Transaction,20.00,
+    CSV
+    mixed_csv.rewind
+
+    rows = NormalizeCsvs.normalize_csvs([mixed_csv.path], FORMATS)
+    sorted_rows = rows.sort_by { |row| Date.parse(row["Date"]) }
+
+    sorted_dates = sorted_rows.map { |row| row["Date"] }
+    expected_dates = ["2025-07-01", "2025-07-05", "2025-07-10"]
+
+    assert_equal expected_dates, sorted_dates
+
+    mixed_csv.close!
+  end
+
+  def test_skips_payment_row
+    payment_csv = Tempfile.new(["chase_amazon", ".csv"])
+    payment_csv.write(<<~CSV)
+      Transaction Date,Description,Amount
+      07/06/2025,Payment Thank You,100.00
+      07/07/2025,Regular Purchase,50.00
+    CSV
+    payment_csv.rewind
+
+    rows = NormalizeCsvs.normalize_csvs([payment_csv.path], FORMATS)
+    assert_equal 1, rows.size
+    assert_equal "Regular Purchase", rows.first["Description"]
+    assert_equal 50.00, rows.first["Amount"]
+
+    payment_csv.close!
   end
 end

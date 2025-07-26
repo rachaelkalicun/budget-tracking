@@ -11,7 +11,8 @@ module NormalizeCsvs
       format = formats[source_key] or
         raise ArgumentError, "Unknown source for #{path}"
 
-      CSV.foreach(path, headers: true) do |row|
+      CSV.foreach(path, headers: true, skip_blanks: true) do |row|
+        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(electronic payment|payment thank you)/)
         rows << normalize_row(row, format, source_key)
       end
     end
@@ -43,7 +44,7 @@ module NormalizeCsvs
 
     # Detect keywords that indicate income (override)
     description = raw_description.downcase
-    if base_category == :expense && description.match?(/(cashback|reward|statement credit)/)
+    if base_category == :expense && description.match?(/(statement credit|thankyou points)/)
       category = "Income"
     else
       category = base_category.to_s.capitalize

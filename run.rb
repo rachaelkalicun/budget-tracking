@@ -15,9 +15,12 @@ input_paths = Dir["data/*.csv"]
 # Normalize all rows
 rows = NormalizeCsvs.normalize_csvs(input_paths, FORMATS)
 
+# Create output directory if it doesn't exist
+Dir.mkdir("output") unless Dir.exist?("output")
+
 # Split into income and expenses
-income_rows = rows.select { |row| row["Category"] == "Income" }
-expense_rows = rows.select { |row| row["Category"] == "Expense" }
+income_rows = rows.select { |row| row["Category"] == "Income" }.sort_by { |row| Date.parse(row["Date"]) }
+expense_rows = rows.select { |row| row["Category"] == "Expense" }.sort_by { |row| Date.parse(row["Date"]) }
 
 # Write expenses
 CSV.open("output/expenses.csv", "w") do |csv|
