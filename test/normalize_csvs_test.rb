@@ -313,4 +313,20 @@ class NormalizeCsvsTest < Minitest::Test
 
     payment_csv.close!
   end
+
+  def test_known_category_matches
+    assert_equal "Groceries", NormalizeCsvs.categorize_transaction("Safeway")
+    assert_equal "Going out", NormalizeCsvs.categorize_transaction("Starbucks")
+    assert_equal "Utilities", NormalizeCsvs.categorize_transaction("Xcel")
+  end
+
+  def test_uncategorized_fallback
+    assert_equal "Uncategorized", NormalizeCsvs.categorize_transaction("Some Unknown Vendor XYZ")
+  end
+
+  def test_partial_category_case_insensitive_matches
+    assert_equal "Groceries", NormalizeCsvs.categorize_transaction("Trader Joe's Market")
+    assert_equal "Car", NormalizeCsvs.categorize_transaction("Progressive Insurance")
+    assert_equal "Entertainment", NormalizeCsvs.categorize_transaction("Denver Film Society")
+  end
 end

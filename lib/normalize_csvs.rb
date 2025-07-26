@@ -1,6 +1,7 @@
 # lib/normalizer.rb
 
 require "pry"
+require_relative 'categorization_rules'
 
 module NormalizeCsvs
   def self.normalize_csvs(file_paths, formats)
@@ -39,6 +40,8 @@ module NormalizeCsvs
         0.0
       end
 
+    category = self.categorize_transaction(raw_description)
+
     # Determine default type based on format type
     base_type = format[:type] || :expense
 
@@ -54,12 +57,22 @@ module NormalizeCsvs
       "Date" => normalize_date(row[format[:date]]),
       "Description" => raw_description,
       "Amount" => amount,
-      "Category" => '',
+      "Category" => category,
       "Notes" => '',
       "Source" => source_key.capitalize,
       "Type" => type
     }
   end
+
+  def self.categorize_transaction(description)
+    CATEGORIZATION_RULES.each do |pattern, category|
+      return category if description =~ pattern
+    end
+    "Uncategorized"
+  end
+
+  # Match the source key based on the file name
+  # e.g. "chase_amazon.csv" -> "chase_amazon"
 
   def self.match_credit_card(path, known_sources)
     basename = File.basename(path).downcase
