@@ -13,7 +13,7 @@ module NormalizeCsvs
         raise ArgumentError, "Unknown source for #{path}"
 
       CSV.foreach(path, headers: true, skip_blanks: true) do |row|
-        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(electronic payment|payment thank you)/)
+        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(electronic payment|payment thank you|credit balance refund)/)
         rows << normalize_row(row, format, source_key)
       end
     end

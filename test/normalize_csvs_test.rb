@@ -329,4 +329,30 @@ class NormalizeCsvsTest < Minitest::Test
     assert_equal "Car", NormalizeCsvs.categorize_transaction("Progressive Insurance")
     assert_equal "Entertainment", NormalizeCsvs.categorize_transaction("Denver Film Society")
   end
+
+  def test_expense_transaction_is_categorized
+    row = CSV::Row.new(
+      ["Transaction Date", "Description", "Amount"],
+      ["07/15/2025", "Amazon Purchase", "49.99"]
+    )
+    format = FORMATS["chase_amazon"] # or any other format with same column names
+    result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
+    assert_equal "Expense", result["Type"]
+    assert_equal "Amazon", result["Category"]
+  end
+
+  def test_income_transaction_is_categorized
+    row = CSV::Row.new(
+      ["Transaction Date", "Description", "Amount"],
+      ["07/15/2025", "Thankyou Points", "5.00"]
+    )
+
+    format = FORMATS["chase_amazon"] # or any other format with same column names
+
+    result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
+
+    # This currently fails if your categorize_transaction is only running for expenses
+    assert_equal "Income", result["Type"]
+    assert_equal "Statement Credit", result["Category"]
+  end
 end
