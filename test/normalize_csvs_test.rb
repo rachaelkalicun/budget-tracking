@@ -57,7 +57,7 @@ class NormalizeCsvsTest < Minitest::Test
     rows = NormalizeCsvs.normalize_csvs([@capital_one_csv.path, @chase_amazon_csv.path, @chase_ihg_csv.path, @citibank_csv.path], FORMATS)
     assert_equal 8, rows.size
     rows.each do |row|
-      assert_equal ["Date", "Description", "Amount", "Source", "Category"], row.keys
+      assert_equal ["Date", "Description", "Amount", "Source", "Type"], row.keys
     end
   end
 
@@ -177,7 +177,7 @@ class NormalizeCsvsTest < Minitest::Test
   def test_ignores_extra_columns
     extended_csv = Tempfile.new(["chase_amazon", ".csv"])
     extended_csv.write(<<~CSV)
-      Transaction Date,Description,Amount,Memo,Category
+      Transaction Date,Description,Amount,Memo,Type
       07/10/2025,Coffee,-4.50,Starbucks,Food
     CSV
     extended_csv.rewind
@@ -215,7 +215,7 @@ class NormalizeCsvsTest < Minitest::Test
     formatted_csv.close!
   end
 
-  def test_category_defaults_to_expense
+  def test_Type_defaults_to_expense
     row = CSV::Row.new(
       ["Transaction Date", "Description", "Amount"],
       ["07/01/2025", "Regular Purchase", "100.00"]
@@ -223,10 +223,10 @@ class NormalizeCsvsTest < Minitest::Test
     format = FORMATS["chase_amazon"]
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
 
-    assert_equal "Expense", result["Category"]
+    assert_equal "Expense", result["Type"]
   end
 
-  def test_category_switches_to_income_for_cashback
+  def test_Type_switches_to_income_for_cashback
     row = CSV::Row.new(
       ["Transaction Date", "Description", "Amount"],
       ["07/02/2025", "Statement Credit - Thank You", "5.00"]
@@ -234,10 +234,10 @@ class NormalizeCsvsTest < Minitest::Test
     format = FORMATS["chase_amazon"]
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
 
-    assert_equal "Income", result["Category"]
+    assert_equal "Income", result["Type"]
   end
 
-  def test_category_switches_to_income_for_statement_credit
+  def test_Type_switches_to_income_for_statement_credit
     row = CSV::Row.new(
       ["Transaction Date", "Description", "Amount"],
       ["07/03/2025", "Reward Statement Credit", "10.00"]
@@ -245,10 +245,10 @@ class NormalizeCsvsTest < Minitest::Test
     format = FORMATS["chase_amazon"]
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
 
-    assert_equal "Income", result["Category"]
+    assert_equal "Income", result["Type"]
   end
 
-  def test_category_respects_income_source_type
+  def test_Type_respects_income_source_type
     income_format = {
       type: :income,
       date: "Date",
@@ -262,7 +262,7 @@ class NormalizeCsvsTest < Minitest::Test
       ["07/04/2025", "Interest Payment", "0.00", "50.00"]
     )
     result = NormalizeCsvs.normalize_row(row, income_format, "my_bank")
-    assert_equal "Income", result["Category"]
+    assert_equal "Income", result["Type"]
   end
 
   def test_refund_is_still_expense_not_income
@@ -273,7 +273,7 @@ class NormalizeCsvsTest < Minitest::Test
     format = FORMATS["chase_amazon"]
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
 
-    assert_equal "Expense", result["Category"]
+    assert_equal "Expense", result["Type"]
   end
 
   def test_output_is_sorted_by_date

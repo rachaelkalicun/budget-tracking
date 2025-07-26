@@ -19,8 +19,8 @@ rows = NormalizeCsvs.normalize_csvs(input_paths, FORMATS)
 Dir.mkdir("output") unless Dir.exist?("output")
 
 # Split into income and expenses
-income_rows = rows.select { |row| row["Category"] == "Income" }.sort_by { |row| Date.parse(row["Date"]) }
-expense_rows = rows.select { |row| row["Category"] == "Expense" }.sort_by { |row| Date.parse(row["Date"]) }
+income_rows = rows.select { |row| row["Type"] == "Income" }.sort_by { |row| Date.parse(row["Date"]) }
+expense_rows = rows.select { |row| row["Type"] == "Expense" }.sort_by { |row| Date.parse(row["Date"]) }
 
 # Write expenses
 CSV.open("output/expenses.csv", "w") do |csv|
@@ -34,4 +34,4 @@ CSV.open("output/income.csv", "w") do |csv|
   income_rows.each { |row| csv << row.values_at("Date", "Description", "Amount", "Source") }
 end
 
-puts "✅ Done: Wrote #{expense_rows.size} expenses and #{income_rows.size} income rows."
+puts "Wrote #{expense_rows.size} expenses and #{income_rows.size} income rows."

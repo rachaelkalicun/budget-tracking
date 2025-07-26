@@ -39,15 +39,15 @@ module NormalizeCsvs
         0.0
       end
 
-    # Determine default category based on format type
-    base_category = format[:type] || :expense
+    # Determine default type based on format type
+    base_type = format[:type] || :expense
 
     # Detect keywords that indicate income (override)
     description = raw_description.downcase
-    if base_category == :expense && description.match?(/(statement credit|thankyou points)/)
-      category = "Income"
+    if base_type == :expense && description.match?(/(statement credit|thankyou points)/)
+      type = "Income"
     else
-      category = base_category.to_s.capitalize
+      type = base_type.to_s.capitalize
     end
 
     {
@@ -55,7 +55,7 @@ module NormalizeCsvs
       "Description" => raw_description,
       "Amount" => amount,
       "Source" => source_key.capitalize,
-      "Category" => category
+      "Type" => type
     }
   end
 
