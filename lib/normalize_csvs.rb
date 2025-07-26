@@ -24,15 +24,14 @@ module NormalizeCsvs
       # { debit: "Amount", credit: "Amount" }
       if format[:debit] == format[:credit]
         # debit and credit are both the same and point to amount
-        row[format[:debit]].to_f
-
+        parse_amount(row[format[:debit]])
       #purchases
       elsif row[format[:debit]].to_s.strip != ""
-        row[format[:debit]].to_f
+        parse_amount(row[format[:debit]])
 
       # refunds
       elsif row[format[:credit]].to_s.strip != ""
-        -row[format[:credit]].to_f
+        -parse_amount(row[format[:credit]])
 
       else
         0.0
@@ -68,5 +67,16 @@ module NormalizeCsvs
     else
       Date.parse(str).to_s
     end
+  end
+
+  def self.parse_amount(value)
+    str = value.to_s.strip
+
+    return 0.0 if str.empty?
+
+    is_negative = str.match?(/^\(\$?\d/)
+    numeric = str.gsub(/[\$,()]/, "").to_f
+
+    is_negative ? -numeric : numeric
   end
 end

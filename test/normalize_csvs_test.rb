@@ -201,4 +201,17 @@ class NormalizeCsvsTest < Minitest::Test
     assert_equal "Groceries", row["Description"]
     messy_csv.close!
   end
+
+  def test_handles_parentheses_as_negative
+    formatted_csv = Tempfile.new(["citibank", ".csv"])
+    formatted_csv.write(<<~CSV)
+      Date,Description,Debit,Credit
+      7/12/2025,Negative With Parentheses,"(123.45)",
+    CSV
+    formatted_csv.rewind
+
+    rows = NormalizeCsvs.normalize_csvs([formatted_csv.path], FORMATS)
+    assert_equal(-123.45, rows[0]["Amount"])
+    formatted_csv.close!
+  end
 end
