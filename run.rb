@@ -3,10 +3,12 @@ require "csv"
 
 # Define formats hash if not already passed in
 FORMATS = {
-  "chase_amazon" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-  "chase_ihg" => { date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-  "citibank" => { date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
-  "capital_one" => { date: "Transaction Date", description: "Description",  debit: "Debit", credit: "Credit" },
+  "capital_one" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit", sign_needs_flipping: false },
+  "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: false },
+  "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: false },
+  "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", sign_needs_flipping: false },
+  "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: true },
+  "ent" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: true }
 }
 
 # Input file paths

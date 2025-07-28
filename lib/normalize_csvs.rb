@@ -13,7 +13,7 @@ module NormalizeCsvs
         raise ArgumentError, "Unknown source for #{path}"
 
       CSV.foreach(path, headers: true, skip_blanks: true) do |row|
-        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(electronic payment|payment thank you|credit balance refund)/)
+        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|payment thank you|credit balance refund)/)
         rows << normalize_row(row, format, source_key)
       end
     end
@@ -27,28 +27,31 @@ module NormalizeCsvs
       # { debit: "Amount", credit: "Amount" }
       if format[:debit] == format[:credit]
         # debit and credit are both the same and point to amount
-        parse_amount(row[format[:debit]])
+        parse_amount(row[format[:debit]], format[:sign_needs_flipping])
       #purchases
       elsif row[format[:debit]].to_s.strip != ""
-        parse_amount(row[format[:debit]])
+        parse_amount(row[format[:debit]], format[:sign_needs_flipping])
 
       # refunds
       elsif row[format[:credit]].to_s.strip != ""
-        -parse_amount(row[format[:credit]])
+        -parse_amount(row[format[:credit]], format[:sign_needs_flipping])
 
       else
         0.0
       end
 
     category = self.categorize_transaction(raw_description)
-
     # Determine default type based on format type
     base_type = format[:type] || :expense
 
     # Detect keywords that indicate income (override)
     description = raw_description.downcase
-    if base_type == :expense && description.match?(/(statement credit|thankyou points)/)
+    # binding.pry
+    if base_type == :expense && description.match?(/(statement credit|stubhub cons type: payments|thankyou points)/)
       type = "Income"
+
+    elsif base_type == :income && description.match?(/(type: billpay|comcast|xcel)/)
+      type = "Expense"
     else
       type = base_type.to_s.capitalize
     end
@@ -98,7 +101,7 @@ module NormalizeCsvs
     end
   end
 
-  def self.parse_amount(value)
+  def self.parse_amount(value, sign_needs_flipping = false)
     str = value.to_s.strip
 
     return 0.0 if str.empty?
@@ -106,7 +109,8 @@ module NormalizeCsvs
     is_negative = str.match?(/^\(\$?\d/)
     numeric = str.gsub(/[\$,()]/, "").to_f
 
-    is_negative ? -numeric : numeric
+    amount = is_negative ? -numeric : numeric
+    sign_needs_flipping ? -amount : amount
   end
 
   def self.write_csv(file_path, rows, columns)
