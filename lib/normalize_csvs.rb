@@ -4,92 +4,98 @@ require "pry"
 require_relative 'categorization_rules'
 
 module NormalizeCsvs
-  def self.normalize_csvs(file_paths, formats)
+  # loop through each file path and match the account format based on the file name - "chase_amazon.csv" -> "chase_amazon"
+  # read the CSV and normalize each row/fields
+  # skip rows that match certain patterns in the description
+  # return an array of hashes with normalized data
+  # e.g. { "Date" => "2023-01-01", "Description" => "Some description", "Amount" => 100.0, "Category" => "Some Category", "Notes" => "", "Source" => "chase_amazon", "Type" => "Expense" }
+  # write the normalized data to a new CSV file
+
+  SKIP_TRANSACTION_TYPES = /(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|payment thank you|credit balance refund)/i
+  INCOME_OVERRIDES = /statement credit|stubhub cons type: payments|thankyou points/i
+  EXPENSE_OVERRIDES = /type: billpay|check #|comcast|xcel/i
+
+  def self.normalize_csvs(file_paths, account_formats)
     rows = []
 
     file_paths.each do |path|
-      source_key = match_credit_card(path, formats.keys)
-      format = formats[source_key] or
-        raise ArgumentError, "Unknown source for #{path}"
+      account_key = match_account(path, account_formats.keys)
+      format = account_formats[account_key] or raise ArgumentError, "Unknown source for #{path}"
 
       CSV.foreach(path, headers: true, skip_blanks: true) do |row|
-        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|payment thank you|credit balance refund)/)
-        rows << normalize_row(row, format, source_key)
+        next if row[format[:description]].to_s.strip.downcase.strip.match?(SKIP_TRANSACTION_TYPES)
+        rows << normalize_row(row, format, account_key)
       end
     end
 
     rows
   end
 
-  def self.normalize_row(row, format, source_key)
-    raw_description = row[format[:description]].to_s.strip
+  def self.normalize_row(row, format, account_key)
+    # Match keywords that indicate type overrides
+    # e.g. "statement credit" or "thankyou points" for income
+    # e.g. "type: billpay" or "check #" for expenses
+    description = row[format[:description]].to_s.strip
+    transaction_type = self.transaction_type_override(format[:type] || :expense, description)
 
-    category = self.categorize_transaction(raw_description)
-    # Determine default type based on format type
-    base_type = format[:type] || :expense
-
-    # Detect keywords that indicate income (override)
-    description = raw_description.downcase
-
-    # credit cards
-    if base_type == :expense && description.match?(/(statement credit|stubhub cons type: payments|thankyou points)/)
-      type = "Income"
-
-    # banks
-    elsif base_type == :income && description.match?(/(type: billpay|check #|comcast|xcel)/)
-      type = "Expense"
-    else
-      type = base_type.to_s.capitalize
-    end
-    amount =
-    # { debit: "Amount", credit: "Amount" }
-    if (format[:debit] == format[:credit]) && !format[:bank_account] && type == "Expense"
-      # debit and credit are both the same and point to amount
-      self.flip_sign_for_single_column_credit_card_formats(row[format[:debit]])
-    #purchases
-    elsif row[format[:debit]].to_s.strip != ""
-      # binding.pry
-      if format[:bank_account] && type == "Expense"
-        # If it's a bank account, convert expenses to positive
-        convert_bank_expenses_to_positive(row[format[:debit]])
-      else
-        # Otherwise, parse normally
-        parse_amount(row[format[:debit]])
-      end
-
-    # refunds
-    elsif row[format[:credit]].to_s.strip != ""
-
-      -parse_amount(row[format[:credit]])
-
-    else
-      0.0
-    end
-
+    # Return a normalized hash for the row
     {
       "Date" => normalize_date(row[format[:date]]),
-      "Description" => raw_description,
-      "Amount" => amount,
-      "Category" => category,
+      "Description" => description,
+      "Amount" => self.calculate_amount(row, format, transaction_type),
+      "Category" => self.categorize_transaction(description),
       "Notes" => '',
-      "Source" => source_key.capitalize,
-      "Type" => type
+      "Source" => account_key.capitalize,
+      "Type" => transaction_type
     }
   end
 
-  def self.flip_sign_for_single_column_credit_card_formats(value)
+  def self.normalize_date(value)
     str = value.to_s.strip
-    return 0.0 if str.empty?
-    numeric = str.gsub(/[\$,()]/, "").to_f
-    numeric.to_f * -1
+    return nil if str.empty?
+
+    # Match MM/DD/YYYY or M/D/YYYY
+    if str.match(%r{\A\d{1,2}/\d{1,2}/\d{4}\z})
+      Date.strptime(str, "%m/%d/%Y").to_s
+
+    # Match YYYY-MM-DD
+    elsif str.match(/\A\d{4}-\d{2}-\d{2}\z/)
+      Date.parse(str).to_s
+
+    # Fallback for things like "July 4, 2025" or "4 Jul 2025"
+    else
+      Date.parse(str).to_s
+    end
+  end
+
+  def self.calculate_amount(row, format, transaction_type)
+    debit_column = row[format[:debit]].to_s.strip
+    credit_column = row[format[:credit]].to_s.strip
+    single_amount_column = format[:debit] == format[:credit]
+    is_bank = format[:bank_account]
+
+    return flip_sign_for_single_column_credit_card_formats(debit_column) if single_amount_column && !is_bank && transaction_type == "Expense"
+    return convert_bank_expenses_to_positive(debit_column) if !debit_column.empty? && is_bank && transaction_type == "Expense"
+    return parse_amount(debit_column) unless debit_column.empty?
+    return -parse_amount(credit_column) unless credit_column.empty?
+
+    0.0
+  end
+
+  def self.transaction_type_override(base_type, description)
+    return "Income" if base_type == :expense && description.match?(INCOME_OVERRIDES)
+    return "Expense" if base_type == :income && description.match?(EXPENSE_OVERRIDES)
+    base_type.to_s.capitalize
+  end
+
+  def self.flip_sign_for_single_column_credit_card_formats(value)
+
+    numeric = value.to_s.gsub(/[\$,()]/, "").to_f
+    -numeric
   end
 
   def self.convert_bank_expenses_to_positive(value)
-    str = value.to_s.strip
-    return 0.0 if str.empty?
-
-    numeric = str.gsub(/[\$,()]/, "").to_f
-    numeric.abs
+    value.to_s.gsub(/[\$,()]/, "").to_f.abs
   end
 
   def self.parse_amount(value)
@@ -112,28 +118,9 @@ module NormalizeCsvs
   # Match the source key based on the file name
   # e.g. "chase_amazon.csv" -> "chase_amazon"
 
-  def self.match_credit_card(path, known_sources)
+  def self.match_account(path, known_sources)
     basename = File.basename(path).downcase
     known_sources.find { |key| basename.include?(key) }
-  end
-
-  def self.normalize_date(value)
-    str = value.to_s.strip
-
-    return nil if str.empty?
-
-    # Match MM/DD/YYYY or M/D/YYYY
-    if str.match(%r{\A\d{1,2}/\d{1,2}/\d{4}\z})
-      Date.strptime(str, "%m/%d/%Y").to_s
-
-    # Match YYYY-MM-DD or parseable ISO-style
-    elsif str.match(/\A\d{4}-\d{2}-\d{2}\z/)
-      Date.parse(str).to_s
-
-    # Fallback for things like "July 4, 2025" or "4 Jul 2025"
-    else
-      Date.parse(str).to_s
-    end
   end
 
   def self.write_csv(file_path, rows, columns)
