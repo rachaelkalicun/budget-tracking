@@ -3,12 +3,12 @@ require "csv"
 
 # Define formats hash if not already passed in
 FORMATS = {
-  "capital_one" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit", sign_needs_flipping: false },
-  "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: false },
-  "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: false },
-  "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", sign_needs_flipping: false },
-  "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: true },
-  "ent" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", sign_needs_flipping: true }
+  "capital_one" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
+  "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
+  "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
+  "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
+  "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true },
+  "ent" => { type: :income, date: "Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true }
 }
 
 # Input file paths

@@ -13,7 +13,7 @@ module NormalizeCsvs
         raise ArgumentError, "Unknown source for #{path}"
 
       CSV.foreach(path, headers: true, skip_blanks: true) do |row|
-        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|payment thank you|credit balance refund)/)
+        next if row[format[:description]].to_s.strip.downcase.strip.match?(/(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|payment thank you|credit balance refund)/)
         rows << normalize_row(row, format, source_key)
       end
     end
@@ -23,22 +23,6 @@ module NormalizeCsvs
 
   def self.normalize_row(row, format, source_key)
     raw_description = row[format[:description]].to_s.strip
-    amount =
-      # { debit: "Amount", credit: "Amount" }
-      if format[:debit] == format[:credit]
-        # debit and credit are both the same and point to amount
-        parse_amount(row[format[:debit]], format[:sign_needs_flipping])
-      #purchases
-      elsif row[format[:debit]].to_s.strip != ""
-        parse_amount(row[format[:debit]], format[:sign_needs_flipping])
-
-      # refunds
-      elsif row[format[:credit]].to_s.strip != ""
-        -parse_amount(row[format[:credit]], format[:sign_needs_flipping])
-
-      else
-        0.0
-      end
 
     category = self.categorize_transaction(raw_description)
     # Determine default type based on format type
@@ -46,14 +30,40 @@ module NormalizeCsvs
 
     # Detect keywords that indicate income (override)
     description = raw_description.downcase
-    # binding.pry
+
+    # credit cards
     if base_type == :expense && description.match?(/(statement credit|stubhub cons type: payments|thankyou points)/)
       type = "Income"
 
-    elsif base_type == :income && description.match?(/(type: billpay|comcast|xcel)/)
+    # banks
+    elsif base_type == :income && description.match?(/(type: billpay|check #|comcast|xcel)/)
       type = "Expense"
     else
       type = base_type.to_s.capitalize
+    end
+    amount =
+    # { debit: "Amount", credit: "Amount" }
+    if (format[:debit] == format[:credit]) && !format[:bank_account] && type == "Expense"
+      # debit and credit are both the same and point to amount
+      self.flip_sign_for_single_column_credit_card_formats(row[format[:debit]])
+    #purchases
+    elsif row[format[:debit]].to_s.strip != ""
+      # binding.pry
+      if format[:bank_account] && type == "Expense"
+        # If it's a bank account, convert expenses to positive
+        convert_bank_expenses_to_positive(row[format[:debit]])
+      else
+        # Otherwise, parse normally
+        parse_amount(row[format[:debit]])
+      end
+
+    # refunds
+    elsif row[format[:credit]].to_s.strip != ""
+
+      -parse_amount(row[format[:credit]])
+
+    else
+      0.0
     end
 
     {
@@ -65,6 +75,31 @@ module NormalizeCsvs
       "Source" => source_key.capitalize,
       "Type" => type
     }
+  end
+
+  def self.flip_sign_for_single_column_credit_card_formats(value)
+    str = value.to_s.strip
+    return 0.0 if str.empty?
+    numeric = str.gsub(/[\$,()]/, "").to_f
+    numeric.to_f * -1
+  end
+
+  def self.convert_bank_expenses_to_positive(value)
+    str = value.to_s.strip
+    return 0.0 if str.empty?
+
+    numeric = str.gsub(/[\$,()]/, "").to_f
+    numeric.abs
+  end
+
+  def self.parse_amount(value)
+    str = value.to_s.strip
+    return 0.0 if str.empty?
+
+    is_negative = str.match?(/^\(\$?\d/)
+    numeric = str.gsub(/[\$,()]/, "").to_f
+
+    is_negative ? -numeric : numeric
   end
 
   def self.categorize_transaction(description)
@@ -99,18 +134,6 @@ module NormalizeCsvs
     else
       Date.parse(str).to_s
     end
-  end
-
-  def self.parse_amount(value, sign_needs_flipping = false)
-    str = value.to_s.strip
-
-    return 0.0 if str.empty?
-
-    is_negative = str.match?(/^\(\$?\d/)
-    numeric = str.gsub(/[\$,()]/, "").to_f
-
-    amount = is_negative ? -numeric : numeric
-    sign_needs_flipping ? -amount : amount
   end
 
   def self.write_csv(file_path, rows, columns)

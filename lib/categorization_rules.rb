@@ -4,6 +4,7 @@ CATEGORIZATION_RULES = {
   /kindle/i => "Books",
   /br factory|kohl|ross|sierra/i => "Clothing",
 	/aaa|jiffy lube|kasey|motor vehicle|progressive|shell/i => "Car",
+	/dividend/i => "Dividends, interest & capital gains",
   /caring hands|chewy/i => "Dog",
   /best buy/i => "Electronics",
   /amc|denver fil|symphony|performing arts/i => "Entertainment",

@@ -7,28 +7,28 @@ require_relative "../lib/normalize_csvs"
 
 class NormalizeCsvsTest < Minitest::Test
   FORMATS = {
-    "capital_one" => { type: :expense, date: "Transaction Date", description: "Description",  debit: "Debit", credit: "Credit" },
-    "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-    "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount" },
-    "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit" },
-    "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount" },
-    "ent" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount" }
+    "capital_one" => { type: :expense, date: "Transaction Date", description: "Description",  debit: "Debit", credit: "Credit", bank_account: false },
+    "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
+    "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
+    "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
+    "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true },
+    "ent" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true }
   }
 
   def setup
     @chase_amazon_csv = Tempfile.new(["chase_amazon", ".csv"])
     @chase_amazon_csv.write(<<~CSV)
       Transaction Date,Description,Amount
-      07/01/2025,Amazon Refund,-15.00
-      07/02/2025,Amazon Purchase,49.99
+      07/01/2025,Amazon Refund,15.00
+      07/02/2025,Amazon Purchase,-49.99
     CSV
     @chase_amazon_csv.rewind
 
     @chase_ihg_csv = Tempfile.new(["chase_ihg", ".csv"])
     @chase_ihg_csv.write(<<~CSV)
       Transaction Date,Description,Amount
-      07/03/2025,Hotel Credit,-75.00
-      07/04/2025,Hotel Charge,200.00
+      07/03/2025,Hotel Credit,75.00
+      07/04/2025,Hotel Charge,-200.00
     CSV
     @chase_ihg_csv.rewind
 
@@ -187,7 +187,7 @@ class NormalizeCsvsTest < Minitest::Test
 
     rows = NormalizeCsvs.normalize_csvs([extended_csv.path], FORMATS)
     assert_equal 1, rows.size
-    assert_equal(-4.50, rows.first["Amount"])
+    assert_equal(4.50, rows.first["Amount"])
     assert_equal "Coffee", rows.first["Description"]
     extended_csv.close!
   end
@@ -238,6 +238,7 @@ class NormalizeCsvsTest < Minitest::Test
     result = NormalizeCsvs.normalize_row(row, format, "chase_amazon")
 
     assert_equal "Income", result["Type"]
+    assert_equal "5.0", result["Amount"].to_s
   end
 
   def test_type_switches_to_income_for_statement_credit
@@ -305,7 +306,7 @@ class NormalizeCsvsTest < Minitest::Test
     payment_csv.write(<<~CSV)
       Transaction Date,Description,Amount
       07/06/2025,Payment Thank You,100.00
-      07/07/2025,Regular Purchase,50.00
+      07/07/2025,Regular Purchase,-50.00
     CSV
     payment_csv.rewind
 
@@ -377,30 +378,24 @@ class NormalizeCsvsTest < Minitest::Test
     assert_equal "Expense", result["Type"]
   end
 
-  def test_parse_amount_standard_behavior
+  def test_parse_amount
     assert_equal 0.0, NormalizeCsvs.parse_amount(nil)
     assert_equal 0.0, NormalizeCsvs.parse_amount("")
     assert_equal 1234.56, NormalizeCsvs.parse_amount("$1,234.56")
+    assert_equal(-1234.56, NormalizeCsvs.parse_amount("-$1,234.56"))
     assert_equal(-1234.56, NormalizeCsvs.parse_amount("($1,234.56)"))
     assert_equal 500.0, NormalizeCsvs.parse_amount("500")
     assert_equal(-500.0, NormalizeCsvs.parse_amount("(500)"))
     assert_equal(-500.0, NormalizeCsvs.parse_amount("($500)"))
   end
 
-  def test_parse_amount_with_reverse_true
-    assert_equal(-1234.56, NormalizeCsvs.parse_amount("$1,234.56", reverse: true))
-    assert_equal 1234.56, NormalizeCsvs.parse_amount("($1,234.56)", reverse: true)
-    assert_equal(-500.0, NormalizeCsvs.parse_amount("500", reverse: true))
-    assert_equal 500.0, NormalizeCsvs.parse_amount("(500)", reverse: true)
-  end
-
   def test_bank_account_behavior_with_reverse
     bank_csv = Tempfile.new(["bank_account", ".csv"])
     bank_csv.write(<<~CSV)
       Date,Description,Debit,Credit
-      7/01/2025,Coffee Shop,25.00,
-      7/02/2025,Paycheck,,1000.00
-      7/03/2025,Refund,($15.00),
+      7/01/2025,Comcast,-25.00,
+      7/02/2025,Check #,-1000.00,
+      7/03/2025,Refund,$15.00,
     CSV
     bank_csv.rewind
 
@@ -410,18 +405,19 @@ class NormalizeCsvsTest < Minitest::Test
         description: "Description",
         debit: "Debit",
         credit: "Credit",
-        sign_needs_flipping: true
+        bank_account: true,
+        type: :income
       }
     }
 
     rows = NormalizeCsvs.normalize_csvs([bank_csv.path], formats)
 
     assert_equal "2025-07-01", rows[0]["Date"]
-    assert_equal "Coffee Shop", rows[0]["Description"]
-    assert_equal(-25.00, rows[0]["Amount"])
+    assert_equal "Comcast", rows[0]["Description"]
+    assert_equal(25.00, rows[0]["Amount"])
 
     assert_equal "2025-07-02", rows[1]["Date"]
-    assert_equal "Paycheck", rows[1]["Description"]
+    assert_equal "Check #", rows[1]["Description"]
     assert_equal 1000.00, rows[1]["Amount"]
 
     assert_equal "2025-07-03", rows[2]["Date"]
