@@ -10,7 +10,9 @@ class NormalizeCsvsTest < Minitest::Test
     "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
     "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
     "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true },
-    "ent" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true }
+    "ent" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true },
+    "fidelity" => { type: :income, date: "Run Date", description: "Action", debit: "Amount ($)", credit: "Amount ($)", bank_account: true },
+    "vanguard" => { type: :income, date: "Settlement Date", description: "Transaction Description", debit: "Net Amount", credit: "Net Amount", bank_account: true }
   }
 
   def setup
@@ -47,10 +49,22 @@ class NormalizeCsvsTest < Minitest::Test
       Posting Date,Description,Amount
       07/10/2025,Type: BillPay - Comcast,150.00
     CSV
+
+    @fidelity_csv = make_csv("fidelity", <<~CSV)
+      Run Date,Action,Amount ($)
+      2025-07-15,Interest,123.45
+      2025-07-20,,123.00
+      2025-07-22,Reinvestment,200.00
+    CSV
+
+    @vanguard_csv = make_csv("vanguard", <<~CSV)
+      Settlement Date,Transaction Description,Net Amount
+      2025-07-16,Dividend Payment,567.89
+    CSV
   end
 
   def teardown
-    [@chase_amazon_csv, @chase_ihg_csv, @citibank_csv, @capital_one_csv, @ent_csv, @elevations_csv].each(&:close!)
+    [@chase_amazon_csv, @chase_ihg_csv, @citibank_csv, @capital_one_csv, @ent_csv, @elevations_csv, @fidelity_csv, @vanguard_csv].each(&:close!)
   end
 
   def make_csv(name, content)
@@ -207,6 +221,18 @@ class NormalizeCsvsTest < Minitest::Test
     file.close!
   end
 
+  def test_skips_row_with_nil_description
+    result = normalize(@fidelity_csv.path)
+    descriptions = result.map { |r| r["Description"] }
+    refute_includes descriptions, nil
+  end
+
+  def test_skips_reinvestment_rows
+    result = normalize(@fidelity_csv.path)
+    descriptions = result.map { |r| r["Description"].downcase }
+    refute_includes descriptions, "reinvestment"
+  end
+
   def test_mixed_override_types_in_one_file
     file = make_csv("chase_amazon", <<~CSV)
       Transaction Date,Description,Amount
@@ -234,5 +260,21 @@ class NormalizeCsvsTest < Minitest::Test
     row = normalize(file.path).first
     assert_equal "Groceries", row["Description"]
     file.close!
+  end
+
+  def test_fidelity_parses_successfully
+    result = normalize(@fidelity_csv.path)
+    assert_equal 1, result.size  # skips nil + reinvestment
+    assert_equal 123.45, result.first["Amount"]
+    assert_equal "Income", result.first["Type"]
+    assert_equal "2025-07-15", result.first["Date"]
+  end
+
+  def test_vanguard_parses_successfully
+    result = normalize(@vanguard_csv.path)
+    assert_equal 1, result.size
+    assert_equal 567.89, result.first["Amount"]
+    assert_equal "Income", result.first["Type"]
+    assert_equal "2025-07-16", result.first["Date"]
   end
 end

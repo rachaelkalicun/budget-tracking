@@ -2,6 +2,7 @@
 
 require "pry"
 require_relative 'categorization_rules'
+require_relative 'formats'
 
 module NormalizeCsvs
   # loop through each file path and match the account format based on the file name - "chase_amazon.csv" -> "chase_amazon"
@@ -11,7 +12,7 @@ module NormalizeCsvs
   # e.g. { "Date" => "2023-01-01", "Description" => "Some description", "Amount" => 100.0, "Category" => "Some Category", "Notes" => "", "Source" => "chase_amazon", "Type" => "Expense" }
   # write the normalized data to a new CSV file
 
-  SKIP_TRANSACTION_TYPES = /(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|payment thank you|credit balance refund)/i
+  SKIP_TRANSACTION_TYPES = /(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|payment thank you|credit balance refund|reinvestment)/i
   INCOME_OVERRIDES = /statement credit|stubhub cons type: payments|thankyou points/i
   EXPENSE_OVERRIDES = /type: billpay|check #|comcast|xcel/i
 
@@ -23,6 +24,7 @@ module NormalizeCsvs
       format = account_formats[account_key] or raise ArgumentError, "Unknown source for #{path}"
 
       CSV.foreach(path, headers: true, skip_blanks: true) do |row|
+        next if row[format[:description]].nil?
         next if row[format[:description]].to_s.strip.downcase.strip.match?(SKIP_TRANSACTION_TYPES)
         rows << normalize_row(row, format, account_key)
       end
