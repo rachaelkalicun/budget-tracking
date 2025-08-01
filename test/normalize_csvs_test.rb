@@ -339,4 +339,9 @@ class NormalizeCsvsTest < Minitest::Test
     assert_equal "Amazon - Uncategorized", row["Category"]
   end
 
+  def test_king_soopers_fue_thornton_matches_car
+    description = "King Soopers #0701 FUE Thornton"
+    category = NormalizeCsvs.categorize_transaction(description, "chase_amazon")
+    assert_equal "Car", category
+  end
 end
