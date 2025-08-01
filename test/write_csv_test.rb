@@ -1,20 +1,29 @@
+require "minitest/autorun"
 require "csv"
-require "date"
+require "tempfile"
 require_relative "../lib/normalize_csvs"
-require_relative "../lib/formats" # Create this to hold FORMATS hash
 
-input_paths = Dir["data/*.csv"]
-output_dir = "output"
-Dir.mkdir(output_dir) unless Dir.exist?(output_dir)
+class WriteCsvTest < Minitest::Test
+  def setup
+    @tempfile = Tempfile.new(["output", ".csv"])
+  end
 
-rows = NormalizeCsvs.normalize_csvs(input_paths, FORMATS)
+  def teardown
+    @tempfile.close!
+  end
 
-income_rows = rows.select { |row| row["Type"] == "Income" }.sort_by { |row| Date.parse(row["Date"]) }
-expense_rows = rows.select { |row| row["Type"] == "Expense" }.sort_by { |row| Date.parse(row["Date"]) }
+  def test_write_csv_outputs_rows_in_correct_order_without_headers
+    rows = [
+      { "Date" => "2025-07-01", "Description" => "Test 1", "Amount" => -15.0, "Source" => "Chase" },
+      { "Date" => "2025-07-02", "Description" => "Test 2", "Amount" => 49.99, "Source" => "Chase" }
+    ]
 
-columns = ["Date", "Description", "Amount", "Category", "Notes", "Source"]
+    NormalizeCsvs.write_csv(@tempfile.path, rows, ["Date", "Description", "Amount", "Source"])
 
-NormalizeCsvs.write_csv("#{output_dir}/income.csv", income_rows, columns)
-NormalizeCsvs.write_csv("#{output_dir}/expenses.csv", expense_rows, columns)
+    csv = CSV.read(@tempfile.path)
 
-puts "Wrote #{expense_rows.size} expenses and #{income_rows.size} income rows."
+    assert_equal ["2025-07-01", "Test 1", "-15.0", "Chase"], csv[0]
+    assert_equal ["2025-07-02", "Test 2", "49.99", "Chase"], csv[1]
+    assert_equal 2, csv.length
+  end
+end

@@ -29,3 +29,13 @@ CATEGORIZATION_RULES = {
 	/airalo|airways|avianca|cot\*flt|cot\*htl|foreign transaction|frontier|grab|hilton|hotel indigo|hotwire|hyatt|klook|luxuryescapes|marriott|southwes|stay winter park|swa|thy|united/i => "Travel",
   /city|city of|city of thornton type: billpay|comcast|xcel/i => "Utilities"
 }
+
+CATEGORIZATION_RULES_AMAZON = {
+  /balm|cleanser|conditioner|creatine|dim|fiber|fluticasone|hair color|hyaluronic|magnesium|natracare|protein|serum|shampoo|skin|tampon/i => "Beauty, health, hygiene",
+  /cereal|chocolate|coffee|coriander|espresso|ketchup|milk|nut|nuts|oil|paprika|pepper|sauce|salt|snack|tea/i => "Groceries",
+  /blanket|bulb|curtain|dishwasher|kitchenaid|mug|nonstick|shower/i => "Home",
+  /dog|pet/i => "Dog",
+  /book|kindle|novel/i => "Books",
+  /bra|clothes|dress|jacket|pants|shirt|shoes|socks|sweater|underwear/i => "Clothing",
+  /.*/ => "Amazon - Uncategorized"  # Fallback
+}

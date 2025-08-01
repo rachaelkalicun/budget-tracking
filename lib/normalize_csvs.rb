@@ -5,14 +5,14 @@ require_relative 'categorization_rules'
 require_relative 'formats'
 
 module NormalizeCsvs
-  # loop through each file path and match the account format based on the file name - "chase_amazon.csv" -> "chase_amazon"
+  # loop through each file path and match the account format based on the file name - "chase_ihg.csv" -> "chase_ihg"
   # read the CSV and normalize each row/fields
   # skip rows that match certain patterns in the description
   # return an array of hashes with normalized data
-  # e.g. { "Date" => "2023-01-01", "Description" => "Some description", "Amount" => 100.0, "Category" => "Some Category", "Notes" => "", "Source" => "chase_amazon", "Type" => "Expense" }
+  # e.g. { "Date" => "2023-01-01", "Description" => "Some description", "Amount" => 100.0, "Category" => "Some Category", "Notes" => "", "Source" => "chase_ihg", "Type" => "Expense" }
   # write the normalized data to a new CSV file
 
-  SKIP_TRANSACTION_TYPES = /(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|payment thank you|credit balance refund|reinvestment)/i
+  SKIP_TRANSACTION_TYPES = /(achxfer|capital one type: billpay|chase creditcard type: billpay|citibank masterc type: billpay|electronic payment|irs|^items$|payment thank you|credit balance refund|reinvestment)/i
   INCOME_OVERRIDES = /statement credit|stubhub cons type: payments|thankyou points/i
   EXPENSE_OVERRIDES = /type: billpay|check #|comcast|xcel/i
 
@@ -39,14 +39,13 @@ module NormalizeCsvs
     # e.g. "type: billpay" or "check #" for expenses
     description = row[format[:description]].to_s.strip
     transaction_type = self.transaction_type_override(format[:type] || :expense, description)
-
     # Return a normalized hash for the row
     {
       "Date" => normalize_date(row[format[:date]]),
       "Description" => description,
       "Amount" => self.calculate_amount(row, format, transaction_type),
-      "Category" => self.categorize_transaction(description),
-      "Notes" => '',
+      "Category" => self.categorize_transaction(description, account_key),
+      "Notes" => account_key == "amazon" && row[format[:description]].to_s.match?(/; (?=(?!")[^\s])/ ) ? "Amazon Multi Order" : "",
       "Source" => account_key.capitalize,
       "Type" => transaction_type
     }
@@ -110,7 +109,13 @@ module NormalizeCsvs
     is_negative ? -numeric : numeric
   end
 
-  def self.categorize_transaction(description)
+  def self.categorize_transaction(description, source)
+    if source == "amazon"
+      CATEGORIZATION_RULES_AMAZON.each do |pattern, category|
+        return category if description =~ pattern
+      end
+      return "Uncategorized - Amazon"
+    end
     CATEGORIZATION_RULES.each do |pattern, category|
       return category if description =~ pattern
     end
@@ -118,7 +123,7 @@ module NormalizeCsvs
   end
 
   # Match the source key based on the file name
-  # e.g. "chase_amazon.csv" -> "chase_amazon"
+  # e.g. "chase_ihg.csv" -> "chase_ihg"
 
   def self.match_account(path, known_sources)
     basename = File.basename(path).downcase

@@ -5,8 +5,8 @@ require_relative "../lib/normalize_csvs"
 
 class NormalizeCsvsTest < Minitest::Test
   FORMATS = {
+    "amazon" => { type: :expense, date: "date", description: "items", debit: "total", credit: "refund", bank_account: false },
     "capital_one" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
-    "chase_amazon" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
     "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
     "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
     "elevations" => { type: :income, date: "Posting Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: true },
@@ -16,10 +16,18 @@ class NormalizeCsvsTest < Minitest::Test
   }
 
   def setup
-    @chase_amazon_csv = make_csv("chase_amazon", <<~CSV)
-      Transaction Date,Description,Amount
-      07/01/2025,Amazon Refund,15.00
-      07/02/2025,Amazon Purchase,-49.99
+    @amazon_csv = make_csv("amazon", <<~CSV)
+      date,items,total,refund
+      2025-07-10,Magnesium supplement,12.00,
+      2025-07-11,Espresso beans,15.00,
+      2025-07-12,Nonstick frying pan,25.00,
+      2025-07-13,Dog nail clippers,9.99,
+      2025-07-14,Kindle novel,8.00,
+      2025-07-15,Wool socks,10.00,
+      2025-07-16,Random Gadget,19.99,
+      2025-07-10,Dog food; Paper towels,30.00,
+      2025-07-11,Just one thing,15.00,
+      2025-07-12,"Dog food; 'Paper towels'",25.00,
     CSV
 
     @chase_ihg_csv = make_csv("chase_ihg", <<~CSV)
@@ -64,7 +72,7 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def teardown
-    [@chase_amazon_csv, @chase_ihg_csv, @citibank_csv, @capital_one_csv, @ent_csv, @elevations_csv, @fidelity_csv, @vanguard_csv].each(&:close!)
+    [@amazon_csv, @chase_ihg_csv, @citibank_csv, @capital_one_csv, @ent_csv, @elevations_csv, @fidelity_csv, @vanguard_csv].each(&:close!)
   end
 
   def make_csv(name, content)
@@ -79,18 +87,18 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_merges_multiple_csvs
-    rows = NormalizeCsvs.normalize_csvs([@capital_one_csv.path, @chase_amazon_csv.path, @chase_ihg_csv.path, @citibank_csv.path], FORMATS)
+    rows = NormalizeCsvs.normalize_csvs([@capital_one_csv.path, @amazon_csv.path, @chase_ihg_csv.path, @citibank_csv.path], FORMATS)
 
-    assert_equal 8, rows.size
+    assert_equal 16, rows.size
     rows.each { |row| assert_equal ["Date", "Description", "Amount", "Category", "Notes", "Source", "Type"], row.keys }
   end
 
   def test_combines_multiple_files_from_same_source
-    second_csv = make_csv("chase_amazon", <<~CSV)
+    second_csv = make_csv("chase_ihg", <<~CSV)
       Transaction Date,Description,Amount
       2025-07-09,Second File,-10.00
     CSV
-    rows = NormalizeCsvs.normalize_csvs([@chase_amazon_csv.path, second_csv.path], FORMATS)
+    rows = NormalizeCsvs.normalize_csvs([@chase_ihg_csv.path, second_csv.path], FORMATS)
     assert_equal 3, rows.size
     second_csv.close!
   end
@@ -114,14 +122,13 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_amount_sign_handling
-    assert_equal [-15.00, 49.99], normalize(@chase_amazon_csv.path).map { |r| r["Amount"] }
     assert_equal [-75.00, 200.00], normalize(@chase_ihg_csv.path).map { |r| r["Amount"] }
     assert_equal [60.00, -30.00], normalize(@citibank_csv.path).map { |r| r["Amount"] }
     assert_equal [100.00, -5.00], normalize(@capital_one_csv.path).map { |r| r["Amount"] }
   end
 
   def test_handles_missing_amount
-    file = make_csv("chase_amazon", "Transaction Date,Description,Amount\n2025-07-01,Blank,\n")
+    file = make_csv("chase_ihg", "Transaction Date,Description,Amount\n2025-07-01,Blank,\n")
     assert_equal 0.0, normalize(file.path).first["Amount"]
     file.close!
   end
@@ -140,7 +147,7 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_normalizes_date_formats
-    assert_equal ["2025-07-01", "2025-07-02"], normalize(@chase_amazon_csv.path).map { |r| r["Date"] }
+    assert_equal ["2025-07-03", "2025-07-04"], normalize(@chase_ihg_csv.path).map { |r| r["Date"] }
   end
 
   def test_normalize_date_variants
@@ -150,14 +157,14 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_raises_on_invalid_date
-    file = make_csv("chase_amazon", "Transaction Date,Description,Amount\nnot_a_date,Invalid,10.00\n")
+    file = make_csv("chase_ihg", "Transaction Date,Description,Amount\nnot_a_date,Invalid,10.00\n")
     assert_raises(Date::Error) { normalize(file.path) }
     file.close!
   end
 
   def test_type_override_to_income
     row = CSV::Row.new(["Transaction Date", "Description", "Amount"], ["07/02/2025", "Statement Credit", "10.00"])
-    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_amazon"], "chase_amazon")
+    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_ihg"], "chase_ihg")
     assert_equal "Income", result["Type"]
   end
 
@@ -168,7 +175,7 @@ class NormalizeCsvsTest < Minitest::Test
 
   def test_default_type_respected
     row = CSV::Row.new(["Transaction Date", "Description", "Amount"], ["07/01/2025", "Purchase", "49.99"])
-    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_amazon"], "chase_amazon")
+    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_ihg"], "chase_ihg")
     assert_equal "Expense", result["Type"]
   end
 
@@ -179,28 +186,28 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_known_category_matches
-    assert_equal "Groceries", NormalizeCsvs.categorize_transaction("Safeway")
-    assert_equal "Car", NormalizeCsvs.categorize_transaction("Progressive Insurance")
+    assert_equal "Groceries", NormalizeCsvs.categorize_transaction("Safeway", "chase_ihg")
+    assert_equal "Car", NormalizeCsvs.categorize_transaction("Progressive Insurance", "chase_ihg")
   end
 
   def test_uncategorized_fallback
-    assert_equal "Uncategorized", NormalizeCsvs.categorize_transaction("Unknown Vendor")
+    assert_equal "Uncategorized", NormalizeCsvs.categorize_transaction("Unknown Vendor", "chase_ihg")
   end
 
   def test_categorizes_transaction_from_row
     row = CSV::Row.new(["Transaction Date", "Description", "Amount"], ["07/15/2025", "Trader Joe's", "49.99"])
-    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_amazon"], "chase_amazon")
+    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_ihg"], "chase_ihg")
     assert_equal "Groceries", result["Category"]
   end
 
   def test_empty_description_defaults_to_uncategorized
     row = CSV::Row.new(["Transaction Date", "Description", "Amount"], ["07/15/2025", "", "5.00"])
-    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_amazon"], "chase_amazon")
+    result = NormalizeCsvs.normalize_row(row, FORMATS["chase_ihg"], "chase_ihg")
     assert_equal "Uncategorized", result["Category"]
   end
 
   def test_skips_known_payment_row
-    file = make_csv("chase_amazon", <<~CSV)
+    file = make_csv("chase_ihg", <<~CSV)
       Transaction Date,Description,Amount
       07/10/2025,Payment Thank You,100.00
       07/11/2025,Amazon Purchase,-20.00
@@ -211,7 +218,7 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_skips_with_whitespace_and_case
-    file = make_csv("chase_amazon", <<~CSV)
+    file = make_csv("chase_ihg", <<~CSV)
       Transaction Date,Description,Amount
       07/10/2025,   PAYMENT THANK YOU   ,100.00
       07/11/2025,Other,-10.00
@@ -234,7 +241,7 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_mixed_override_types_in_one_file
-    file = make_csv("chase_amazon", <<~CSV)
+    file = make_csv("chase_ihg", <<~CSV)
       Transaction Date,Description,Amount
       07/10/2025,Statement Credit,10.00
       07/11/2025,Amazon Purchase,-20.00
@@ -246,7 +253,7 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_ignores_extra_columns
-    file = make_csv("chase_amazon", <<~CSV)
+    file = make_csv("chase_ihg", <<~CSV)
       Transaction Date,Description,Amount,Memo
       07/10/2025,Coffee,-4.50,Starbucks
     CSV
@@ -256,7 +263,7 @@ class NormalizeCsvsTest < Minitest::Test
   end
 
   def test_strips_whitespace
-    file = make_csv("chase_amazon", "Transaction Date,Description,Amount\n07/11/2025,  Groceries  , -25.00\n")
+    file = make_csv("chase_ihg", "Transaction Date,Description,Amount\n07/11/2025,  Groceries  , -25.00\n")
     row = normalize(file.path).first
     assert_equal "Groceries", row["Description"]
     file.close!
@@ -277,4 +284,59 @@ class NormalizeCsvsTest < Minitest::Test
     assert_equal "Income", result.first["Type"]
     assert_equal "2025-07-16", result.first["Date"]
   end
+
+  def test_sets_amazon_multi_order_note_if_multiple_items_unquoted
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Dog food; Paper towels" }
+    assert_equal "Amazon Multi Order", row["Notes"]
+  end
+
+  def test_does_not_set_note_if_no_semicolon
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Just one thing" }
+    assert_equal "", row["Notes"]
+  end
+
+  def test_does_not_set_multi_order_note_for_non_amazon_sources
+    file = make_csv("chase_ihg", <<~CSV)
+      Transaction Date,Description,Amount
+      07/10/2025,Dog food; Paper towels,-30.00
+    CSV
+    result = normalize(file.path).first
+    assert_equal "", result["Notes"]
+    file.close!
+  end
+  def test_amazon_categorizes_beauty_and_health_items
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Magnesium supplement" }
+    assert_equal "Beauty, health, hygiene", row["Category"]
+  end
+
+  def test_amazon_categorizes_groceries
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Espresso beans" }
+    assert_equal "Groceries", row["Category"]
+  end
+
+  def test_amazon_categorizes_home_items
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Nonstick frying pan" }
+    assert_equal "Home", row["Category"]
+  end
+
+  def test_amazon_categorizes_dog_items
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Dog nail clippers" }
+    assert_equal "Dog", row["Category"]
+  end
+
+  def test_amazon_categorizes_books
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Kindle novel" }
+    assert_equal "Books", row["Category"]
+  end
+
+  def test_amazon_categorizes_clothing
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Wool socks" }
+    assert_equal "Clothing", row["Category"]
+  end
+
+  def test_amazon_uses_fallback_uncategorized
+    row = normalize(@amazon_csv.path).find { |r| r["Description"] == "Random Gadget" }
+    assert_equal "Amazon - Uncategorized", row["Category"]
+  end
+
 end
