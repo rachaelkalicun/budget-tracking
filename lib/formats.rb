@@ -1,5 +1,5 @@
 FORMATS = {
-  "amazon" => { type: :expense, date: "date", description: "items", debit: "total", credit: "refund", bank_account: false, whole_foods: "to" },
+  "amazon" => { type: :expense, date: "date", description: "items", debit: "total", credit: "refund", bank_account: false },
   "capital_one" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
   "chase_ihg" => { type: :expense, date: "Transaction Date", description: "Description", debit: "Amount", credit: "Amount", bank_account: false },
   "citibank" => { type: :expense, date: "Date", description: "Description", debit: "Debit", credit: "Credit", bank_account: false },
