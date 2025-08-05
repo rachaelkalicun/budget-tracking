@@ -1,87 +1,135 @@
-# Budget Normalizer
+# 🧾 Budget CSV Normalizer
 
-This Ruby tool helps normalize CSVs from various credit card providers into a standard format, so you can categorize and track your expenses and income consistently.
+This Ruby script helps you consolidate, clean, and categorize financial CSVs from different sources (banks, credit cards, brokerages, Amazon, etc.). It generates normalized `income.csv` and `expenses.csv` files to support budgeting, personal finance tracking, or importing into other tools like [The Measure of a Plan budget tracking tool](https://themeasureofaplan.com/budget-tracking-tool/){:target="_blank"}.
 
-This project was born out of personal need. After months of neglecting my manual spreadsheet, I finally got tired of copying and pasting rows from different banks every month, especially with different date formats, column names, and how debits and credits are handled.
+---
 
 ## Features
 
-- Supports multiple bank formats: Chase (Amazon and IHG), Citi, Capital One
-- Normalizes dates like `7/4/2025`, `2025-07-04`, and even `July 4, 2025`
-- Handles amounts in a consistent numeric format
-- Preserves source information
-- Categorizes data into `income.csv` and `expenses.csv` based on simple rules
+- Normalize CSVs from multiple institutions
+- Categorize transactions using customizable rules
+- Handle Amazon orders with extra care
+- Split transactions into `income.csv` and `expenses.csv`
+- Output consistent fields: `Date`, `Description`, `Amount`, `Category`, `Notes`, `Source`
 
-## Current Format Support
+---
 
-The tool currently supports these CSV structures:
+## Directory Structure
 
-| Bank        | Format Example                                      |
-|-------------|-----------------------------------------------------|
-| Chase       | `Transaction Date`, `Description`, `Amount`        |
-| Citi        | `Date`, `Description`, `Debit`, `Credit`           |
-| Capital One | `Transaction Date`, `Description`, `Debit`, `Credit` |
-
-## Getting Started
-
-Clone the repo and run:
-
-```bash
-bundle install
+```
+.
+├── data/                   # Put raw CSV files here
+├── output/                 # Normalized output files will be written here
+├── lib/
+│   ├── normalize_csvs.rb   # Main normalization and categorization logic
+│   ├── categorization_rules.rb # Regex-based transaction categorization
+│   └── formats.rb          # CSV parsing formats per account type
+├── bin/normalize_and_export.rb  # Entry point for running the script
 ```
 
-Then run the processor:
+---
+
+## Usage
+
+1. **Install Ruby**
+
+2. **Add your CSV files**
+   Drop your `.csv` files into the `data/` directory. File names must include a keyword that maps to a format key (e.g., `chase_ihg.csv` → `chase_ihg`).
+
+3. **Run the script**
 
 ```bash
-ruby run.rb path/to/your/csvs/*.csv
+ruby bin/normalize_and_export.rb
 ```
 
-This will generate:
+4. **Check the results**
+   The script creates:
 
-- `normalized_income.csv`
-- `normalized_expenses.csv`
+- `output/income.csv`
+- `output/expenses.csv`
 
-## How It Works
+---
 
-Each CSV file is matched to a known bank type using the filename. The contents are parsed, normalized, and split into income or expenses based on the transaction type.
+## Supported Sources
 
-### Income vs Expense Logic
+Add or adjust these in `lib/formats.rb`.
 
-We default to assuming all transactions are expenses unless:
+| Format Key    | Institution or Type      | Notes                                 |
+|---------------|--------------------------|----------------------------------------|
+| `amazon`      | Amazon Orders            | Uses special rules for product parsing |
+| `capital_one` | Capital One Credit Card  | Has separate debit/credit columns      |
+| `chase_ihg`   | Chase IHG Card           | Single amount field                    |
+| `citibank`    | CitiBank Credit Card     | Standard dual-column format            |
+| `elevations`  | Elevations Credit Union  | Bank account / income                  |
+| `ent`         | ENT Credit Union         | Bank account / income                  |
+| `fidelity`    | Fidelity Investments     | Includes dividends/interest            |
+| `vanguard`    | Vanguard                 | Includes investment transactions       |
 
-- The description contains **"reward"**, **"interest"**, or **"payment received"** (case-insensitive)
-- You want to refine this? See `lib/normalize_csvs.rb`, method `income_transaction?`
+---
 
-### Negative Values
+## Categorization
 
-We automatically invert amounts for refunds or credits:
-- Refunds on credit cards are still treated as **expenses**
-- Rewards or cashback posted as statement credits are treated as **income**
+Edit `lib/categorization_rules.rb` to adjust logic for how transactions are classified.
 
-### Supported Date Formats
+### Standard Rule Example
 
-The tool supports:
-- `MM/DD/YYYY` (e.g. `7/4/2025`)
-- `YYYY-MM-DD` (e.g. `2025-07-04`)
-- Natural dates like `July 4, 2025` or `4 Jul 2025`
-
-## Tests
-
-Run tests with:
-
-```bash
-ruby test/normalize_csvs_test.rb
+```ruby
+/amc|denver fil|symphony/i => "Entertainment"
+/trader joe|safeway/i => "Groceries"
 ```
 
-Tests cover:
-- Merging files
-- Parsing amounts and signs correctly
-- Handling missing or malformed data
-- Normalizing different date formats
+### Amazon-Specific Rule Example
 
-## To use
+```ruby
+/serum|protein|shampoo/i => "Beauty, health, hygiene"
+/book|novel/i => "Books"
+```
 
-You’ll need to do two things:
+If no match is found:
 
-1. **Update the `FORMATS` hash** in `run.rb` and `test/normalize_csvs_test.rb` to reflect the column headers in your own CSVs.
-2. **Customize `income_transaction?`** if your income sources are labeled differently.
+- Amazon transactions → `"Amazon - Uncategorized"`
+- Other transactions → `"Uncategorized"`
+
+---
+
+## Extras
+
+- **Notes for Amazon Multi-Item Orders**
+  Amazon transactions containing multiple items are marked with `"Amazon Multi Order"` in the `Notes` field.
+
+- **Transaction Type Overrides**
+  Some credits or debits are reclassified from income to expense or vice versa based on keywords like `"statement credit"` or `"type: billpay"`.
+
+- **Skipped Transactions**
+  Payment transfers, tax refunds, and known irrelevant rows are skipped automatically.
+
+---
+
+## Example Output
+
+```csv
+Date,Description,Amount,Category,Notes,Source
+2025-07-01,"Starbucks Coffee",5.25,"Going out","",Chase_ihg
+2025-07-02,"Salary",2500.00,"Uncategorized","","Ent"
+```
+
+---
+
+## Customization Tips
+
+### Add a New Institution
+
+1. Add an entry to `FORMATS` in `lib/formats.rb`
+2. Ensure your file name includes the format key
+3. Match the CSV column names for `date`, `description`, `debit`, `credit`, etc.
+
+### Add or Tweak Categories
+
+1. Update `CATEGORIZATION_RULES` in `lib/categorization_rules.rb`
+2. Use regex patterns for flexible matching
+
+---
+
+## Privacy
+
+All files are processed locally. No network requests are made. The input and output files are ignored by Git.
