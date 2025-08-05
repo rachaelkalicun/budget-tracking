@@ -1,6 +1,6 @@
-# 🧾 Budget CSV Normalizer
+# Budget CSV Normalizer
 
-This Ruby script helps you consolidate, clean, and categorize financial CSVs from different sources (banks, credit cards, brokerages, Amazon, etc.). It generates normalized `income.csv` and `expenses.csv` files to support budgeting, personal finance tracking, or importing into other tools like [The Measure of a Plan budget tracking tool](https://themeasureofaplan.com/budget-tracking-tool/){:target="_blank"}.
+This Ruby script helps you consolidate, clean, and categorize financial CSVs from different sources (banks, credit cards, brokerages, Amazon, etc.). It generates normalized `income.csv` and `expenses.csv` files to support budgeting, personal finance tracking, or importing into other tools like [The Measure of a Plan budget tracking tool](https://themeasureofaplan.com/budget-tracking-tool/).
 
 ---
 
