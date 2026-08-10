@@ -1,2 +1,7 @@
 data/*
 output/*
+
+# Local secrets. Keep sanitized examples explicitly committable if introduced.
+.env
+.env.*
+!.env.example
