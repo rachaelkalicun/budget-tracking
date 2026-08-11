@@ -1,5 +1,7 @@
 # Budget CSV Normalizer
 
+> **Public companion repository:** This repository is retained as the publication-safe source companion for articles and existing links about this CSV-based budget-tracking process. Active personal-finance development, working configuration, and validation are maintained separately in a private workspace. Reusable improvements may be published here only after an explicit privacy/publication review. Do not open issues containing personal financial data, account inventories, workbook identifiers, credentials, or transaction history.
+
 This Ruby script helps you consolidate, clean, and categorize financial CSVs from different sources (banks, credit cards, brokerages, Amazon, etc.). It generates normalized `income.csv` and `expenses.csv` files to support budgeting, personal finance tracking, or importing into other tools like [The Measure of a Plan budget tracking tool](https://themeasureofaplan.com/budget-tracking-tool/).
 
 ---
@@ -132,4 +134,4 @@ Date,Description,Amount,Category,Notes,Source
 
 ## Privacy
 
-All files are processed locally. No network requests are made. The input and output files are ignored by Git.
+All files are processed locally. No network requests are made. The input and output files are ignored by Git. Do not commit real financial exports, credentials, account configuration, or transaction history to this public repository.
