@@ -1,2 +1,13 @@
+# Raw/private financial inputs and generated outputs
 data/*
 output/*
+private/
+
+# Local secrets/configuration
+.env
+.env.*
+!.env.example
+*credentials*.json
+*token*.json
+*.pem
+*.key
