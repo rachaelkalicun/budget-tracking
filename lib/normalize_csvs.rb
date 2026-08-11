@@ -1,6 +1,5 @@
 # lib/normalizer.rb
 
-require "pry"
 require_relative 'categorization_rules'
 require_relative 'formats'
 
