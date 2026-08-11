@@ -31,20 +31,32 @@ This Ruby script helps you consolidate, clean, and categorize financial CSVs fro
 
 ---
 
+## Setup and tests
+
+Use Ruby 3.4.4, as specified in [`.ruby-version`](.ruby-version), then run:
+
+```bash
+bin/setup
+bin/test
+```
+
+`bin/setup` installs the locked Bundler dependencies when needed. `bin/test`
+runs the complete Minitest suite through `bundle exec rake test`, matching CI.
+The setup and test commands use only the repository's code and synthetic test
+fixtures; they do not require files from `data/`, `output/`, or `private/`.
+
 ## Usage
 
-1. **Install Ruby**
-
-2. **Add your CSV files**
+1. **Add your CSV files**
    Drop your `.csv` files into the `data/` directory. File names must include a keyword that maps to a format key (e.g., `chase_ihg.csv` → `chase_ihg`).
 
-3. **Run the script**
+2. **Run the script**
 
 ```bash
 ruby bin/normalize_and_export.rb
 ```
 
-4. **Check the results**
+3. **Check the results**
    The script creates:
 
 - `output/income.csv`

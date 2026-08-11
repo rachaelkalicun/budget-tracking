@@ -20,16 +20,13 @@ jobs:
   test:
 
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        ruby-version: ['3.4.4']
 
     steps:
     - uses: actions/checkout@v4
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
-        ruby-version: ${{ matrix.ruby-version }}
+        ruby-version: .ruby-version
         bundler-cache: true
     - name: Run tests
-      run: bundle exec rake test
+      run: bin/test
